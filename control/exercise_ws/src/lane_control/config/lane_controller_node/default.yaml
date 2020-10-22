@@ -1,3 +1,40 @@
 #lane_control/lane_controller_node
+controller_type: "turn_pid"
 
-## ADD CONFIGS HERE
+v_forward: 0.5
+# set k_theta to be not sensitive to k_D
+k_theta: -1
+k_d: -0.8
+k_d_critically_damped_flag: false
+k_Id: -0.3
+k_Itheta: 0.1
+k_dd: 0.0
+k_dtheta: 0.0
+theta_threshold: 0.1 #in radians
+d_threshold: 0.3
+d_threshold_robust_flag: true
+d_resolution: 0.02
+theta_resolution: 0.05
+
+turning_config:
+  forced_turn_time: 1.0
+  v_forward: 0.2
+  # let the max angle for turning be 180 deg
+  # we choose k_theta using the following equation:
+  #   pi/theta_threshold ~ k_theta
+  k_theta: -3.0
+  k_d: -1
+  # we set k_d's critically damped flag to be false here because
+  # the yaw angle is usually large for turns.
+  # (theta \approx sin(theta) does not apply)
+  k_d_critically_damped_flag: true
+  k_Id: -0.2
+  k_Itheta: 0.0
+  k_dd: -0.5
+  k_dtheta: -0.5
+  theta_threshold: 0.9 #in radians
+  d_threshold: 0.5
+  d_threshold_robust_flag: false
+  d_resolution: 0.01
+  theta_resolution: 0.13
+  half_speed_criterion: 0.7
