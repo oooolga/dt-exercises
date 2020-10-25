@@ -1,7 +1,9 @@
 #lane_control/lane_controller_node
-controller_type: "turn_pid"
+controller_type: "pure_pursuit"
 
-v_forward: 0.5
+v_forward: 0.42
+look_ahead_k: 0.9
+
 # set k_theta to be not sensitive to k_D
 k_theta: -1
 k_d: -0.8

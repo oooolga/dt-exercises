@@ -10,7 +10,8 @@ from duckietown_msgs.msg import Twist2DStamped, LanePose, WheelsCmdStamped, \
 
 from lane_controller.controller import DummyLaneController, \
                                        BasicPIDLaneController, \
-                                       SpecialTurningPIDLaneController
+                                       SpecialTurningPIDLaneController,\
+                                       PurePursuitLaneController
 
 
 class LaneControllerNode(DTROS):
@@ -32,7 +33,8 @@ class LaneControllerNode(DTROS):
 
     CONTROLLER_LOOKUP = {"dummy": DummyLaneController,
                          "basic_pid": BasicPIDLaneController,
-                         "turn_pid": SpecialTurningPIDLaneController}
+                         "turn_pid": SpecialTurningPIDLaneController,
+                         "pure_pursuit": PurePursuitLaneController}
 
     def __init__(self, node_name):
 
@@ -105,6 +107,8 @@ class LaneControllerNode(DTROS):
                                                           np.pi/6)
         self.params["~d_threshold"] = rospy.get_param("~d_threshold",
                                                       0.3)
+        self.params["~look_ahead_k"] = rospy.get_param("~look_ahead_k",
+                                                       3.0)
         self.params["~k_d_critically_damped_flag"] = rospy.get_param(
                                                 "~k_d_critically_damped_flag",
                                                 False
@@ -148,6 +152,10 @@ class LaneControllerNode(DTROS):
                                                  LanePose,
                                                  self.cbLanePoses,
                                                  queue_size=1)
+        self.sub_lane_reading = rospy.Subscriber("~lane_filter",
+                                                 LanePose,
+                                                 self.cbLaneFilters,
+                                                 queue_size=1)
         self.sub_intersection_navigation_pose = rospy.Subscriber(
                                                 "~intersection_navigation_pose",
                                                 LanePose,
@@ -162,8 +170,6 @@ class LaneControllerNode(DTROS):
                                              FSMState,
                                              self.cbMode,
                                              queue_size=1)
-        # self.sub_stop_line = rospy.Subscriber("~stop_line")
-
         self.log("Initialized!")
         self.log("Lane controller type = {}.".format(self.controller_type))
 
@@ -176,6 +182,9 @@ class LaneControllerNode(DTROS):
 
     def cbWheelsCmdExecute(self, msg_wheels_cmd):
         self.wheels_cmd_executed = msg_wheels_cmd
+
+    def cbLaneFilters(self, input_pose_msg):
+        self.log('[LANE FILTER] pose_msg = \n{}\n'.format(input_pose_msg))
 
     def cbLanePoses(self, input_pose_msg):
         """Callback receiving pose messages
@@ -200,8 +209,8 @@ class LaneControllerNode(DTROS):
         wheels_cmd_flag = [self.wheels_cmd_executed.vel_left,
                            self.wheels_cmd_executed.vel_right]
         car_control_msg.v, car_control_msg.omega = \
-            self.controller.get_car_control(d_err=self.pose_msg.d,
-                                            theta_err=self.pose_msg.phi,
+            self.controller.get_car_control(d_err=self.pose_msg.d-self.pose_msg.d_ref,
+                                            theta_err=self.pose_msg.phi-self.pose_msg.phi_ref,
                                             in_lane=self.pose_msg.in_lane,
                                             wheels_cmd_flag=wheels_cmd_flag,
                                             dt=duration)
@@ -209,12 +218,15 @@ class LaneControllerNode(DTROS):
         self.publishCmd(car_control_msg)
 
         # outputs pose information for current time step
-        self.log("\nfsm_state = {}\n".format(self.fsm_state) + \
-                 "\nduration = {}s\n".format(duration) + \
-                 "\npose_msg = \n{}\n".format(self.pose_msg) + \
-                 "\ncar_control_msg = \n{}\n".format(car_control_msg) + \
-                 "\npid values = \n{}\n".format(
-                    self.controller.get_PID_str()))
+        log_str = "\nfsm_state = {}\n".format(self.fsm_state) + \
+                  "\nduration = {}s\n".format(duration) + \
+                  "\npose_msg = \n{}\n".format(self.pose_msg) + \
+                  "\ncar_control_msg = \n{}\n".format(car_control_msg)
+        if isinstance(self.controller, BasicPIDLaneController) or \
+           isinstance(self.controller, SpecialTurningPIDLaneController):
+            log_str = "\npid values = \n{}\n".format(
+                                         self.controller.get_PID_str())
+        self.log(log_str)
         self.last_time = rospy.Time.now().to_sec()
 
 

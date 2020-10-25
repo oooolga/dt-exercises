@@ -33,6 +33,74 @@ class DummyLaneController:
         """
         return self.parameters["~v_forward"].value, 0.0
 
+class PurePursuitLaneController(DummyLaneController):
+
+    def __init__(self, parameters):
+
+        super(PurePursuitLaneController, self).__init__(parameters)
+
+        self.half_speed_timer = 0.0
+        self.half_speed_flag = False
+        self.prev_v = 0.0, 0.0
+
+    def get_T_a_f_and_follow_point_robot(self, d, theta,
+                                         v=None):
+        T_ref_a = np.array([
+               [np.cos(theta), -np.sin(theta), 0.],
+               [np.sin(theta), np.cos(theta), d],
+               [0., 0., 1.]
+               ])
+
+        if not v:
+            v = self.parameters["~v_forward"].value
+
+        look_ahead_d = self.parameters["~look_ahead_k"] * v
+
+        T_ref_f = np.array([
+               [1., 0., look_ahead_d],
+               [0., 1., 0.],
+               [0., 0., 1.]
+               ])
+        T_a_f = np.dot(np.linalg.inv(T_ref_a), T_ref_f)
+        return T_a_f, np.array([T_a_f[0,2], T_a_f[1,2]])
+
+    def get_car_control(self, **kwargs):
+
+        if not kwargs["in_lane"]:
+            return self.prev_v[0], -self.prev_v[1]
+
+        v_curr = v_init = self.parameters["~v_forward"].value
+
+        #if abs(kwargs["theta_err"]) > 0.6:
+        #    v_curr = v_init / 5
+
+        if abs(kwargs["theta_err"]) > 0.6: #0.4:
+            v_curr = v_init / 4
+
+        elif abs(kwargs["theta_err"]) > 0.3: #0.2:
+            v_curr = v_init / 3
+
+        elif abs(kwargs["theta_err"]) > 0.12: #0.12:
+            v_curr = v_init / 2
+        elif abs(kwargs["theta_err"]) > 0.1: #0.06:
+            v_curr = v_init * 3 / 4
+
+
+
+        _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"],
+                                                           kwargs["theta_err"],
+                                                           v=v_curr)
+        d = np.sqrt(f_point[0]**2+f_point[1]**2)
+	
+        sin_alpha = f_point[1] / d
+        alpha = np.arcsin(sin_alpha)
+
+        self.prev_v = v_curr, alpha
+
+        return self.prev_v
+
+
+
 class BasicPIDLaneController(DummyLaneController):
 
     def __init__(self, parameters):
