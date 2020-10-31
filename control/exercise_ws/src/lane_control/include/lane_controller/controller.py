@@ -39,12 +39,12 @@ class PurePursuitLaneController(DummyLaneController):
 
         super(PurePursuitLaneController, self).__init__(parameters)
 
-        self.half_speed_timer = 0.0
-        self.half_speed_flag = False
+        #self.half_speed_timer = 0.0
+        #self.half_speed_flag = False
         self.prev_v = 0.0, 0.0
 
     def get_T_a_f_and_follow_point_robot(self, d, theta,
-                                         v=None):
+                                         v=None, k=None):
         T_ref_a = np.array([
                [np.cos(theta), -np.sin(theta), 0.],
                [np.sin(theta), np.cos(theta), d],
@@ -54,7 +54,10 @@ class PurePursuitLaneController(DummyLaneController):
         if not v:
             v = self.parameters["~v_forward"].value
 
-        look_ahead_d = self.parameters["~look_ahead_k"] * v
+        if not k:
+            k = self.parameters["~look_ahead_k"]
+
+        look_ahead_d = k * (v**1.5)
 
         T_ref_f = np.array([
                [1., 0., look_ahead_d],
@@ -70,30 +73,43 @@ class PurePursuitLaneController(DummyLaneController):
             return self.prev_v[0], -self.prev_v[1]
 
         v_curr = v_init = self.parameters["~v_forward"].value
+        k = self.parameters["~look_ahead_k"]
 
-        #if abs(kwargs["theta_err"]) > 0.6:
-        #    v_curr = v_init / 5
+        if abs(kwargs["theta_err"]) > 0.5 and abs(kwargs["d_err"]) > 0.07:
+            v_curr = v_init / 5.
 
-        if abs(kwargs["theta_err"]) > 0.6: #0.4:
-            v_curr = v_init / 4
+        elif (abs(kwargs["theta_err"]) > 0.36 and abs(kwargs["d_err"]) > 0.055) or \
+		abs(kwargs["theta_err"]) > 0.5:
+            v_curr = v_init / 4.
 
-        elif abs(kwargs["theta_err"]) > 0.3: #0.2:
-            v_curr = v_init / 3
+        elif (abs(kwargs["theta_err"]) > 0.25 and abs(kwargs["d_err"]) > 0.045) or \
+		abs(kwargs["theta_err"]) > 0.36:
+            v_curr = v_init / 3.
+
+        elif (abs(kwargs["theta_err"]) > 0.18 and abs(kwargs["d_err"]) > 0.03) or \
+		abs(kwargs["theta_err"]) > 0.25:
+            v_curr = v_init / 2. # /4
+
+        elif (abs(kwargs["theta_err"]) > 0.12 and abs(kwargs["d_err"]) > 0.02) or \
+		abs(kwargs["theta_err"]) > 0.18:
+            v_curr = v_init * 2. / 3.
 
         elif abs(kwargs["theta_err"]) > 0.12: #0.12:
-            v_curr = v_init / 2
-        elif abs(kwargs["theta_err"]) > 0.1: #0.06:
-            v_curr = v_init * 3 / 4
+            v_curr = v_init * 3. / 4. # / 2
+
+        elif abs(kwargs["theta_err"]) > 0.06: #0.06:
+            v_curr = v_init * 4. / 5.
 
 
 
         _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"],
                                                            kwargs["theta_err"],
-                                                           v=v_curr)
+                                                           v=v_curr,
+                                                           k=k)
         d = np.sqrt(f_point[0]**2+f_point[1]**2)
 	
-        sin_alpha = f_point[1] / d
-        alpha = np.arcsin(sin_alpha)
+        #sin_alpha = f_point[1] / d
+        alpha = np.arcsin(f_point[1] / d)
 
         self.prev_v = v_curr, alpha
 
