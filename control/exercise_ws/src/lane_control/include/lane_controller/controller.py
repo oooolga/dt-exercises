@@ -42,6 +42,7 @@ class PurePursuitLaneController(DummyLaneController):
         #self.half_speed_timer = 0.0
         #self.half_speed_flag = False
         self.prev_v = 0.0, 0.0
+        self.curr_k = self.parameters["~look_ahead_k"]
 
     def get_T_a_f_and_follow_point_robot(self, d, theta,
                                          v=None, k=None):
@@ -55,9 +56,9 @@ class PurePursuitLaneController(DummyLaneController):
             v = self.parameters["~v_forward"].value
 
         if not k:
-            k = self.parameters["~look_ahead_k"]
+            k = self.curr_k
 
-        look_ahead_d = k * (v**1.5)
+        look_ahead_d = k * (v**1.25)
 
         T_ref_f = np.array([
                [1., 0., look_ahead_d],
@@ -73,13 +74,17 @@ class PurePursuitLaneController(DummyLaneController):
             return self.prev_v[0], -self.prev_v[1]
 
         v_curr = v_init = self.parameters["~v_forward"].value
-        k = self.parameters["~look_ahead_k"]
+        self.curr_k = self.parameters["~look_ahead_k"]
+        
+        if abs(kwargs["d_err"]) > 0.075 and abs(kwargs["theta_err"]) < 0.75 or \
+            abs(kwargs["d_err"]) > 0.1:
+            self.curr_k *= 0.25
 
-        if abs(kwargs["theta_err"]) > 0.5 and abs(kwargs["d_err"]) > 0.07:
+        if abs(kwargs["theta_err"]) > 0.55 and abs(kwargs["d_err"]) > 0.07:
             v_curr = v_init / 5.
 
         elif (abs(kwargs["theta_err"]) > 0.36 and abs(kwargs["d_err"]) > 0.055) or \
-		abs(kwargs["theta_err"]) > 0.5:
+		abs(kwargs["theta_err"]) > 0.55:
             v_curr = v_init / 4.
 
         elif (abs(kwargs["theta_err"]) > 0.25 and abs(kwargs["d_err"]) > 0.045) or \
@@ -104,8 +109,7 @@ class PurePursuitLaneController(DummyLaneController):
 
         _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"],
                                                            kwargs["theta_err"],
-                                                           v=v_curr,
-                                                           k=k)
+                                                           v=v_curr)
         d = np.sqrt(f_point[0]**2+f_point[1]**2)
 	
         #sin_alpha = f_point[1] / d

@@ -11,13 +11,13 @@ colors:
     low: [0,0,65]
     high: [180,100,255]
   YELLOW:
-    low: [14,106,85]
-    high: [31,250,240]
+    low: [15,106,85]
+    high: [33,250,240]
 #    low_2: [32,90,75]
 #    high_2: [36,210,180]
 
 line_detector_parameters:
-  canny_thresholds: [90,230]
+  canny_thresholds: [95,225]
   canny_aperture_size: 3
   dilation_kernel_size: 3
   hough_threshold: 2

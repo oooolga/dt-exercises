@@ -221,7 +221,8 @@ class LaneControllerNode(DTROS):
         log_str = "\nfsm_state = {}\n".format(self.fsm_state) + \
                   "\nduration = {}s\n".format(duration) + \
                   "\npose_msg = \n{}\n".format(self.pose_msg) + \
-                  "\ncar_control_msg = \n{}\n".format(car_control_msg)
+                  "\ncar_control_msg = \n{}\n".format(car_control_msg) + \
+                  "\nk = {}\n".format(self.controller.curr_k)
         if isinstance(self.controller, BasicPIDLaneController) or \
            isinstance(self.controller, SpecialTurningPIDLaneController):
             log_str = "\npid values = \n{}\n".format(
