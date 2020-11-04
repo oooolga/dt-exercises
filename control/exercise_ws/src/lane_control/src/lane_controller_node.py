@@ -122,6 +122,8 @@ class LaneControllerNode(DTROS):
                                                 False
                                                 )
 
+        self.params["~half_speed_time"] = rospy.get_param("~half_speed_time", 0.5)
+
         # 2. initialize controller
         self.controller_type = rospy.get_param("~controller_type", None)
 
