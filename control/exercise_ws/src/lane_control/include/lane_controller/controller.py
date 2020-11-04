@@ -86,22 +86,18 @@ class PurePursuitLaneController(DummyLaneController):
 
         theta_err = kwargs["theta_err"]
 
-        if abs(theta_err) > 0.2 and abs(kwargs["d_err"]) > 0.05:
+        if abs(theta_err) > 0.14 or abs(kwargs["d_err"]) > 0.05:
 
-            v_curr = v_init / 3.
+            v_curr = v_init * 0.36
             '''
             if kwargs["dt"]:
                 self.turn_time_elapsed += kwargs["dt"]
                 self.half_v_flag = True
             '''
 
-        elif (abs(theta_err) > 0.1 and abs(kwargs["d_err"]) > 0.035) or \
-		abs(theta_err) > 0.2:
-            v_curr = v_init / 2.
-
         theta_err = np.clip(theta_err, -np.pi/2, np.pi/2)
 
-        _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"]*1.0,
+        _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"],
                                                            theta_err,
                                                            v=v_curr)
         d = np.sqrt(f_point[0]**2+f_point[1]**2)
