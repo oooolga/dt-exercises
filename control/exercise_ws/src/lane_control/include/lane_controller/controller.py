@@ -3,6 +3,8 @@ from duckietown.dtros import DTParam, ParamType
 from copy import deepcopy
 import sys
 
+epsilon = 1e-10
+
 class DummyLaneController:
     """
     The Lane Controller can be used to compute control commands from pose
@@ -86,9 +88,9 @@ class PurePursuitLaneController(DummyLaneController):
 
         theta_err = kwargs["theta_err"]
 
-        if abs(theta_err) > 0.14 or abs(kwargs["d_err"]) > 0.05:
+        if abs(theta_err) > 0.2 or abs(kwargs["d_err"]) > 0.1:
 
-            v_curr = v_init * 0.36
+            v_curr = v_init * 0.25
             '''
             if kwargs["dt"]:
                 self.turn_time_elapsed += kwargs["dt"]
@@ -100,9 +102,10 @@ class PurePursuitLaneController(DummyLaneController):
         _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"],
                                                            theta_err,
                                                            v=v_curr)
-        d = np.sqrt(f_point[0]**2+f_point[1]**2)
+        #d = np.sqrt(f_point[0]**2+f_point[1]**2)
 	
-        alpha = np.arcsin(f_point[1] / d)
+        #alpha = np.arcsin(f_point[1] / d)
+        alpha = np.arctan(f_point[1] / np.maximum(f_point[0], epsilon))
 
         self.prev_v = v_curr, alpha
 
