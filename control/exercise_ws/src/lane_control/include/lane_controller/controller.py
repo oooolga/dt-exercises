@@ -59,10 +59,13 @@ class PurePursuitLaneController(DummyLaneController):
         if not k:
             k = self.curr_k
 
-        look_ahead_d = k * v
+        look_ahead_d = k #* v
+        
+        fp_ref_x_square = np.maximum(0., look_ahead_d**2 - d**2)
+        fp_ref_x = np.sqrt(fp_ref_x_square)
 
         T_ref_f = np.array([
-               [1., 0., look_ahead_d],
+               [1., 0., fp_ref_x],
                [0., 1., 0.],
                [0., 0., 1.]
                ])
@@ -71,31 +74,32 @@ class PurePursuitLaneController(DummyLaneController):
 
     def get_car_control(self, **kwargs):
 
-        #if not kwargs["in_lane"]:
-        #    return self.prev_v[0], -self.prev_v[1]
+        # if not kwargs["in_lane"]:
+        #     return self.prev_v[0], -self.prev_v[1]
 
         v_curr = v_init = self.parameters["~v_forward"].value
         self.curr_k = self.parameters["~look_ahead_k"]
         
         
-        if abs(kwargs["d_err"]) > 0.075 and abs(kwargs["theta_err"]) < 0.75 or \
-            abs(kwargs["d_err"]) > 0.1:
-            self.curr_k *= 0.5
+        # if abs(kwargs["d_err"]) > 0.08:
+        #     self.curr_k *= 0.5
 
-        theta_err = np.clip(kwargs["theta_err"]*1.0, -np.pi/2, np.pi/2)
+        theta_err = kwargs["theta_err"]
 
-        if abs(theta_err) > 0.55 and abs(kwargs["d_err"]) > 0.05:
+        if abs(theta_err) > 0.2 and abs(kwargs["d_err"]) > 0.05:
 
-            v_curr = v_init / 2.
+            v_curr = v_init / 3.
             '''
             if kwargs["dt"]:
                 self.turn_time_elapsed += kwargs["dt"]
                 self.half_v_flag = True
             '''
 
-        elif (abs(theta_err) > 0.2 and abs(kwargs["d_err"]) > 0.035) or \
-		abs(theta_err) > 0.4:
-            v_curr = v_init / 3. * 2.
+        elif (abs(theta_err) > 0.1 and abs(kwargs["d_err"]) > 0.035) or \
+		abs(theta_err) > 0.2:
+            v_curr = v_init / 2.
+
+        theta_err = np.clip(theta_err, -np.pi/2, np.pi/2)
 
         _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"]*1.0,
                                                            theta_err,

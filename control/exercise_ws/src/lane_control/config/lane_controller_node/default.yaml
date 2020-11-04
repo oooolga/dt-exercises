@@ -2,7 +2,7 @@
 controller_type: "pure_pursuit"
 
 v_forward: 0.4
-look_ahead_k: 2
+look_ahead_k: 0.2
 half_speed_time: 0.5
 
 # set k_theta to be not sensitive to k_D
