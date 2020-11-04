@@ -139,9 +139,8 @@ class LaneControllerNode(DTROS):
         self.last_time = None
         self.fsm_state = None
         self.wheels_cmd_executed = WheelsCmdStamped()
-        self.stop_line_distance = None
-        self.stop_line_detected = False
         self.at_stop_line = False
+        self.at_obstacle_stop_line = False
 
         # Construct publishers
         self.pub_car_cmd = rospy.Publisher("~car_cmd",
@@ -172,8 +171,23 @@ class LaneControllerNode(DTROS):
                                              FSMState,
                                              self.cbMode,
                                              queue_size=1)
+        self.sub_stop_line = rospy.Subscriber("~stop_line_reading",
+                                              StopLineReading,
+                                              self.cbStopLineReading,
+                                              queue_size=1)
+        self.sub_obstacle_stop_line = rospy.Subscriber("~obstacle_distance_reading",
+                                                       StopLineReading,
+                                                       self.cbObstacleStopLineReading,
+                                                       queue_size=1)
+
         self.log("Initialized!")
         self.log("Lane controller type = {}.".format(self.controller_type))
+
+    def cbStopLineReading(self, msg):
+        self.at_stop_line = msg.at_stop_line
+
+    def cbObstacleStopLineReading(self, msg):
+        self.at_obstacle_stop_line = msg.at_stop_line
 
     def cbMode(self, fsm_state_msg):
         self.fsm_state = fsm_state_msg.state
@@ -206,16 +220,20 @@ class LaneControllerNode(DTROS):
         car_control_msg = Twist2DStamped()
         car_control_msg.header = self.pose_msg.header
 
-        # call controller's get control method to compute the car's next
-        # time step's linear velocity and angular velocity
-        wheels_cmd_flag = [self.wheels_cmd_executed.vel_left,
-                           self.wheels_cmd_executed.vel_right]
-        car_control_msg.v, car_control_msg.omega = \
-            self.controller.get_car_control(d_err=self.pose_msg.d-self.pose_msg.d_ref,
-                                            theta_err=self.pose_msg.phi-self.pose_msg.phi_ref,
-                                            in_lane=self.pose_msg.in_lane,
-                                            wheels_cmd_flag=wheels_cmd_flag,
-                                            dt=duration)
+        if self.at_stop_line or self.at_obstacle_stop_line:
+            car_control_msg.v, car_control_msg.omega = 0, 0
+
+        else:
+            # call controller's get control method to compute the car's next
+            # time step's linear velocity and angular velocity
+            wheels_cmd_flag = [self.wheels_cmd_executed.vel_left,
+                               self.wheels_cmd_executed.vel_right]
+            car_control_msg.v, car_control_msg.omega = \
+                self.controller.get_car_control(d_err=self.pose_msg.d-self.pose_msg.d_ref,
+                                                theta_err=self.pose_msg.phi-self.pose_msg.phi_ref,
+                                                in_lane=self.pose_msg.in_lane,
+                                                wheels_cmd_flag=wheels_cmd_flag,
+                                                dt=duration)
 
         self.publishCmd(car_control_msg)
 
