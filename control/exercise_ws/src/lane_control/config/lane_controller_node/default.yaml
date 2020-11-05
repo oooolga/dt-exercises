@@ -2,9 +2,9 @@
 controller_type: "pure_pursuit"
 
 v_forward: 0.6
-look_ahead_k: 0.3
+look_ahead_k: 0.1
 slow_down_multiplier: 0.2
-slow_down_theta_thres: 0.18
+slow_down_theta_thres: 0.16
 slow_down_d_thres: 0.1
 
 # set k_theta to be not sensitive to k_D

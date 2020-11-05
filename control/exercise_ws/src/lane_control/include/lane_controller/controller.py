@@ -43,7 +43,8 @@ class PurePursuitLaneController(DummyLaneController):
 
         self.half_speed_timer = 0.0
         self.half_speed_flag = False
-
+        
+        self.prev_d, self.prev_theta = 0.0, 0.0
         self.prev_v = 0.0, 0.0
         self.curr_k = self.parameters["~look_ahead_k"]
 
@@ -76,26 +77,25 @@ class PurePursuitLaneController(DummyLaneController):
 
     def get_car_control(self, **kwargs):
 
-        # if not kwargs["in_lane"]:
-        #     return self.prev_v[0], -self.prev_v[1]
+        theta_err = kwargs["theta_err"]
+        d_err = kwargs["d_err"]
+
+        if abs(self.prev_theta - theta_err) > (np.pi + epsilon):
+            theta_err = self.prev_theta/2.
+        if kwargs["dt"] and abs(self.prev_d - d_err) > self.prev_v[0]*kwargs["dt"]*1.2:
+            d_err = self.prev_d/2
 
         v_curr = v_init = self.parameters["~v_forward"].value
         self.curr_k = self.parameters["~look_ahead_k"]
-        
-        
-        # if abs(kwargs["d_err"]) > 0.08:
-        #     self.curr_k *= 0.5
-
-        theta_err = kwargs["theta_err"]
 
         if abs(theta_err) > self.parameters["~slow_down_theta_thres"] or \
-           abs(kwargs["d_err"]) > self.parameters["~slow_down_d_thres"]:
+           abs(d_err) > self.parameters["~slow_down_d_thres"]:
 
             v_curr = v_init * self.parameters["~slow_down_multiplier"]
 
         theta_err = np.clip(theta_err, -np.pi/2, np.pi/2)
 
-        _, f_point = self.get_T_a_f_and_follow_point_robot(kwargs["d_err"],
+        _, f_point = self.get_T_a_f_and_follow_point_robot(d_err,
                                                            theta_err,
                                                            v=v_curr)
 
@@ -104,6 +104,7 @@ class PurePursuitLaneController(DummyLaneController):
         alpha = np.arctan(f_point[1] / np.maximum(f_point[0], epsilon))
 
         self.prev_v = v_curr, alpha
+        self.prev_theta, self.prev_d = theta_err, d_err
 
         return self.prev_v
 
