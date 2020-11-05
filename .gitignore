@@ -15,3 +15,4 @@ control/exercise_ws/build/
 control/exercise_ws/devel/
 control/exercise_ws/logs/
 *resolved
+*.yaml
