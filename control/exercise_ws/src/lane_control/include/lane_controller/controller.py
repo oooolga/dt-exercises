@@ -81,7 +81,7 @@ class PurePursuitLaneController(DummyLaneController):
         d_err = kwargs["d_err"]
 
         if abs(self.prev_theta - theta_err) > (np.pi + epsilon):
-            theta_err = self.prev_theta/3.
+            theta_err = self.prev_theta/2.
         if kwargs["dt"] and abs(self.prev_d - d_err) > self.prev_v[0]*kwargs["dt"]*1.2:
             d_err = self.prev_d * 0.5 #+ 0.2 * (d_err - self.prev_d)
 

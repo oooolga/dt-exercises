@@ -3,7 +3,7 @@ controller_type: "pure_pursuit"
 
 v_forward: 0.7
 look_ahead_k: 0.1
-slow_down_multiplier: 0.23
+slow_down_multiplier: 0.2
 slow_down_theta_thres: 0.17
 slow_down_d_thres: 0.1
 
