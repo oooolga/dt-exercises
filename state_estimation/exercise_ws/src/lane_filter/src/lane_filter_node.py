@@ -55,6 +55,7 @@ class LaneFilterNode(DTROS):
         self.last_update_stamp = self.t_last_update
 
         self.filter.wheel_radius = rospy.get_param(f"/{veh}/kinematics_node/radius")
+        self.filter.wheel_distance = rospy.get_param(f"/{veh}/kinematics_node/baseline")
 
         # Subscribers
         self.sub_segment_list = rospy.Subscriber("~segment_list",
@@ -118,8 +119,12 @@ class LaneFilterNode(DTROS):
         # first let's check if we moved at all, if not abort
         if self.right_encoder_ticks_delta == 0 and self.left_encoder_ticks_delta == 0:
             return
+        self.loginfo("[PREDICT]\n\tright_encoder_ticks_delta = {}\n".format(self.right_encoder_ticks_delta) +\
+                                "\tleft_encoder_ticks_delta = {}".format(self.left_encoder_ticks_delta))
 
         self.filter.predict(dt, self.left_encoder_ticks_delta, self.right_encoder_ticks_delta)
+        self.loginfo("{}".format(self.filter))        
+
         self.left_encoder_ticks += self.left_encoder_ticks_delta
         self.right_encoder_ticks += self.right_encoder_ticks_delta
         self.left_encoder_ticks_delta = 0
@@ -143,7 +148,8 @@ class LaneFilterNode(DTROS):
 
         # Step 2: update
         self.filter.update(segment_list_msg.segments)
-
+        self.loginfo("[UPDATE]\n{}\n".format(self.filter) +\
+                     "\tmeasurement_z = {}".format(self.filter.z))
         self.publishEstimate(segment_list_msg)
 
 
