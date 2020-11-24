@@ -93,7 +93,7 @@ class PurePursuitLaneController(DummyLaneController):
 
             v_curr = v_init * self.parameters["~slow_down_multiplier"]
 
-        theta_err = np.clip(theta_err, -np.pi/2, np.pi/2)
+        #theta_err = np.clip(theta_err, -np.pi/2, np.pi/2)
 
         _, f_point = self.get_T_a_f_and_follow_point_robot(d_err,
                                                            theta_err,

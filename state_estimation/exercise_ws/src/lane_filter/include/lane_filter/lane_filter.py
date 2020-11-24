@@ -73,8 +73,8 @@ class LaneFilterHistogramKF():
 
         self.H = np.array([[1., 0.],
                            [0., 1.]])
-        self.R = np.array([[0.01, 0],
-                           [0, 0.01]])
+        self.R = np.array([[0.03, 0],
+                           [0, 0.07]])
         self.fQ = lambda eD, ephi: np.array([[eD**2+self.error_offset, eD*ephi],
                                              [eD*ephi, ephi**2+self.error_offset]])
 
