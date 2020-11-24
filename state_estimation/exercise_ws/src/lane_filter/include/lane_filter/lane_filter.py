@@ -196,6 +196,7 @@ class LaneFilterHistogramKF():
         l_i = (l1 + l2) / 2
         d_i = (d1 + d2) / 2
         phi_i = np.arcsin(t_hat[1])
+
         if segment.color == segment.WHITE:  # right lane is white
             if(p1[0] > p2[0]):  # right edge of white lane
                 d_i = d_i - self.linewidth_white

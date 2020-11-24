@@ -62,7 +62,7 @@ class PurePursuitLaneController(DummyLaneController):
         if not k:
             k = self.curr_k
 
-        look_ahead_d = k #* v
+        look_ahead_d = k * v + 0.05
         
         fp_ref_x_square = np.maximum(0., look_ahead_d**2 - d**2)
         fp_ref_x = np.sqrt(fp_ref_x_square)

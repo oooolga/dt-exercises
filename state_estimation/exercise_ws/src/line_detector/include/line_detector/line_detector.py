@@ -63,7 +63,7 @@ class LineDetector:
             image (:obj:`numpy array`): input image
 
         """
-
+        image = cv2.GaussianBlur(image, (5,5), 0)
         self.bgr = np.copy(image)
         self.hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         self.canny_edges = self.findEdges()
