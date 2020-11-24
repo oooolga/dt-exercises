@@ -48,6 +48,9 @@ class LaneFilterNode(DTROS):
         self._filter = rospy.get_param('~lane_filter_histogram_kf_configuration', None)
         self._debug = rospy.get_param('~debug', False)
         self._predict_freq = rospy.get_param('~predict_frequency', 30.0)
+        self._mode = rospy.get_param('~mode', None)
+
+        self.loginfo('Current mode: {}'.format(self._mode))
 
         # Create the filter
         self.filter = LaneFilterHistogramKF(**self._filter)
@@ -56,6 +59,7 @@ class LaneFilterNode(DTROS):
 
         self.filter.wheel_radius = rospy.get_param(f"/{veh}/kinematics_node/radius")
         self.filter.wheel_distance = rospy.get_param(f"/{veh}/kinematics_node/baseline")
+        self.filter.wheel_trim = max(abs(rospy.get_param(f"/{veh}/kinematics_node/trim")), 0.1) if self._mode != 'SIM' else 0.0
 
         # Subscribers
         self.sub_segment_list = rospy.Subscriber("~segment_list",
