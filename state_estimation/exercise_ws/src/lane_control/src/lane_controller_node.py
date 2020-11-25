@@ -125,6 +125,8 @@ class LaneControllerNode(DTROS):
         self.params["~slow_down_multiplier"] = rospy.get_param("~slow_down_multiplier", 0.5)
         self.params["~slow_down_theta_thres"] = rospy.get_param("~slow_down_theta_thres", 0.5)
         self.params["~slow_down_d_thres"] = rospy.get_param("~slow_down_d_thres", 0.5)
+        self.params["~slow_down_look_ahead_k"] = rospy.get_param("~slow_down_look_ahead_k")
+
 
         # 2. initialize controller
         self.controller_type = rospy.get_param("~controller_type", None)

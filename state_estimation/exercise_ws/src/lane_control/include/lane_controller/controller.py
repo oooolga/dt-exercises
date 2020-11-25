@@ -62,7 +62,7 @@ class PurePursuitLaneController(DummyLaneController):
         if not k:
             k = self.curr_k
 
-        look_ahead_d = k * v + 0.05
+        look_ahead_d = k #* v + 0.05
         
         fp_ref_x_square = np.maximum(0., look_ahead_d**2 - d**2)
         fp_ref_x = np.sqrt(fp_ref_x_square)
@@ -92,7 +92,7 @@ class PurePursuitLaneController(DummyLaneController):
            abs(d_err) > self.parameters["~slow_down_d_thres"]:
 
             v_curr = v_init * self.parameters["~slow_down_multiplier"]
-
+            self.curr_k = self.parameters["~slow_down_look_ahead_k"]
         #theta_err = np.clip(theta_err, -np.pi/2, np.pi/2)
 
         _, f_point = self.get_T_a_f_and_follow_point_robot(d_err,

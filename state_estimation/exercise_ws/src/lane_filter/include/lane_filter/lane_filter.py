@@ -4,9 +4,33 @@ from scipy.stats import multivariate_normal
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from math import floor, sqrt
+from sklearn import linear_model
 
 np.set_printoptions(precision=3)
 EPS = 1e-5
+
+def linearRegression(X, y, mode='Huber'):
+    N = X.shape[0]
+    if mode == 'RANSAC':
+        lm = linear_model.RANSACRegressor(max_trials=200,
+                                          stop_n_inliers=np.ceil(0.9*N))
+    elif mode == 'Huber':
+        lm = linear_model.HuberRegressor()
+    else:
+        lm = linear_model.LinearRegression()
+
+    lm.fit(X, y)
+    if mode == 'RANSAC':
+        m, b = float(lm.estimator_.coef_), float(lm.estimator_.intercept_)
+        n_inlier = np.sum(lm.inlier_mask_)
+    else:
+        m, b = float(lm.coef_), float(lm.intercept_)
+        if mode == 'Huber':
+            n_inlier = N - np.sum(lm.outliers_)
+        else:
+            n_inlier = N
+
+    return m, b, n_inlier
 
 class LaneFilterHistogramKF():
     """ Generates an estimate of the lane pose.
@@ -77,6 +101,7 @@ class LaneFilterHistogramKF():
                            [0, 0.07]])
         self.fQ = lambda eD, ephi: np.array([[eD**2+self.error_offset, eD*ephi],
                                              [eD*ephi, ephi**2+self.error_offset]])
+        self.z = np.array([0., 0.])
 
 
     def __str__(self):
@@ -115,6 +140,7 @@ class LaneFilterHistogramKF():
         segmentsArray = self.prepareSegments(segments)
         # generate all belief arrays
 
+        ''' ## measurement likelihood approach
         measurement_likelihood = self.generate_measurement_likelihood(
             segmentsArray)
 
@@ -130,16 +156,79 @@ class LaneFilterHistogramKF():
             #self.z = np.array([0., 0.]) # for debugging purposes
             #residual_mean = np.array([0., 0.])
 
-        residual_mean = self.z - self.H @ self.belief['mean']
+        
+        '''
+        separated_segments = self.setup_segments_for_regression(segments)
+
+        white_inlier = yellow_inlier = total_inlier = 0
+        white_m = yellow_m = 0
+        if len(separated_segments['WHITE'][0]):
+            white_m, white_b, white_inlier = linearRegression(
+                                               np.array(separated_segments['WHITE'][0])[:, np.newaxis],
+                                               np.array(separated_segments['WHITE'][1]))
+        if len(separated_segments['YELLOW'][0]):
+            yellow_m, yellow_b, yellow_inlier = linearRegression(
+                                               np.array(separated_segments['YELLOW'][0])[:, np.newaxis],
+                                               np.array(separated_segments['YELLOW'][1]))
+   
+        white_z = np.array([0., 0.])
+        yellow_z = np.array([0., 0.])
+        if white_inlier:
+            white_z = self.compute_regression_d_phi(white_m, white_b, mode='WHITE')
+            total_inlier += white_inlier
+        if yellow_inlier:
+            yellow_z = self.compute_regression_d_phi(yellow_m, yellow_b, mode='YELLOW')
+            total_inlier += yellow_inlier
+        if total_inlier:
+            self.z = (white_z * white_inlier + yellow_z * yellow_inlier) / total_inlier
+
+        print(white_m, yellow_m, total_inlier)
+        print(white_z, yellow_z, self.z)
 
         # TODO: Apply the update equations for the Kalman Filter to self.belief
+        residual_mean = self.z - self.H @ self.belief['mean']
+        
         self.K_k = self.fK(self.belief['covariance'], self.H, self.R)
         self.belief['covariance'] = self.belief['covariance'] - self.K_k @ self.H @ self.belief['covariance']
         self.belief['mean'] = self.belief['mean'] + self.K_k @ residual_mean
+
+        print('K_k = \n{}'.format(self.K_k))
         
 
     def getEstimate(self):
         return self.belief
+
+    def setup_segments_for_regression(self, segments):
+
+        separated_segments = {'WHITE':[[], []], 'YELLOW':[[],[]]}
+        for segment in segments:
+            if segment.color == segment.WHITE:
+                separated_segments['WHITE'][0]+= [segment.points[0].x, segment.points[1].x]
+                separated_segments['WHITE'][1]+= [segment.points[0].y, segment.points[1].y]
+            elif segment.color == segment.YELLOW:
+                separated_segments['YELLOW'][0]+= [segment.points[0].x, segment.points[1].x]
+                separated_segments['YELLOW'][1]+= [segment.points[0].y, segment.points[1].y]
+        return separated_segments
+
+    def compute_regression_d_phi(self, m, b, mode):
+        _p1 = np.array([0., b])
+        _p2 = np.array([1., m+b])
+        v12 = (_p2-_p1)/max(np.linalg.norm(_p2-_p1), EPS)
+        n12 = np.array([-v12[1], v12[0]])
+        d = np.inner(n12, _p1)
+        phi = -np.arcsin(v12[1])
+
+        if mode == 'WHITE':
+
+            d = -d + self.linewidth_white/2.
+            d = d - self.lanewidth/2.
+        else:
+            d = d - self.linewidth_yellow/2.
+            d = self.lanewidth / 2 - d
+
+        return np.array([d, phi])
+
+
 
     def generate_measurement_likelihood(self, segments):
         

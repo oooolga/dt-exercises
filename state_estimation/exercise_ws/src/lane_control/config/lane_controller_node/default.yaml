@@ -1,11 +1,12 @@
 #lane_control/lane_controller_node
 controller_type: "pure_pursuit"
 
-v_forward: 0.7
-look_ahead_k: 0.49
-slow_down_multiplier: 0.28
-slow_down_theta_thres: 0.14
+v_forward: 0.8
+look_ahead_k: 0.25
+slow_down_multiplier: 0.3
+slow_down_theta_thres: 0.13
 slow_down_d_thres: 0.1
+slow_down_look_ahead_k: 0.11
 
 # set k_theta to be not sensitive to k_D
 k_theta: -1
