@@ -1,5 +1,5 @@
 img_size: [120,160]
-top_cutoff: 43
+top_cutoff: 48
 
 colors:
   RED:
@@ -12,7 +12,7 @@ colors:
     high: [180,90,255]
   YELLOW:
     low: [16, 90, 80]
-    high: [40, 255, 245]
+    high: [35, 255, 245]
 #    low: [15,100,90]
 #    high: [33,255,245]
 #    low_2: [33,90,75]
@@ -23,5 +23,5 @@ line_detector_parameters:
   canny_aperture_size: 3
   dilation_kernel_size: 3
   hough_threshold: 2
-  hough_min_line_length: 5
+  hough_min_line_length: 7
   hough_max_line_gap: 1
