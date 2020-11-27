@@ -72,11 +72,6 @@ class LaneFilterHistogramKF():
             assert p_name in kwargs
             setattr(self, p_name, kwargs[p_name])
 
-        self.mean_0 = np.array([self.mean_d_0, self.mean_phi_0])
-        self.cov_0 = np.array([[self.sigma_d_0, 0.],
-                               [0., self.sigma_phi_0]])
-
-        self.belief = {'mean': self.mean_0, 'covariance': self.cov_0}
         self.cov_mask = [self.sigma_d_mask, self.sigma_phi_mask]
 
         self.encoder_resolution = 0
@@ -103,6 +98,8 @@ class LaneFilterHistogramKF():
                                              [eD*ephi, ephi**2+self.error_offset]])
         self.z = np.array([0., 0.])
 
+        self.reset()
+
 
     def __str__(self):
         return "Estimated values:\n\t\td = {:.3f}\n\t\tphi = {}\n".format(self.belief['mean'][0],
@@ -110,6 +107,12 @@ class LaneFilterHistogramKF():
                "Estimated variance:\n\t\tSigma =\n\t\t{}\n"\
 					.format(str(self.belief['covariance']).replace('\n', '\n\t\t'))
 
+    def reset(self):
+        self.mean_0 = np.array([self.mean_d_0, self.mean_phi_0])
+        self.cov_0 = np.array([[self.sigma_d_0, 0.],
+                               [0., self.sigma_phi_0]])
+
+        self.belief = {'mean': self.mean_0, 'covariance': self.cov_0}
 
     def predict(self, dt, left_encoder_delta, right_encoder_delta):
         #TODO update self.belief based on right and left encoder data + kinematics
@@ -159,9 +162,10 @@ class LaneFilterHistogramKF():
         
         '''
         separated_segments = self.setup_segments_for_regression(segments)
-
+       
         white_inlier = yellow_inlier = total_inlier = 0
-        white_m = yellow_m = 0
+        white_m = yellow_m = 0.
+        white_b = yellow_b = 0.
         if len(separated_segments['WHITE'][0]):
             white_m, white_b, white_inlier = linearRegression(
                                                np.array(separated_segments['WHITE'][0])[:, np.newaxis],
@@ -183,16 +187,16 @@ class LaneFilterHistogramKF():
             self.z = (white_z * white_inlier + yellow_z * yellow_inlier) / total_inlier
 
         print(white_m, yellow_m, total_inlier)
+        print(white_b, yellow_b, total_inlier)
         print(white_z, yellow_z, self.z)
+        print(separated_segments)
 
         # TODO: Apply the update equations for the Kalman Filter to self.belief
         residual_mean = self.z - self.H @ self.belief['mean']
         
         self.K_k = self.fK(self.belief['covariance'], self.H, self.R)
         self.belief['covariance'] = self.belief['covariance'] - self.K_k @ self.H @ self.belief['covariance']
-        self.belief['mean'] = self.belief['mean'] + self.K_k @ residual_mean
-
-        print('K_k = \n{}'.format(self.K_k))
+        self.belief['mean'] = self.z #self.belief['mean'] + self.K_k @ residual_mean
         
 
     def getEstimate(self):
@@ -201,13 +205,20 @@ class LaneFilterHistogramKF():
     def setup_segments_for_regression(self, segments):
 
         separated_segments = {'WHITE':[[], []], 'YELLOW':[[],[]]}
+        max_yellow_y = -np.inf
         for segment in segments:
-            if segment.color == segment.WHITE:
-                separated_segments['WHITE'][0]+= [segment.points[0].x, segment.points[1].x]
-                separated_segments['WHITE'][1]+= [segment.points[0].y, segment.points[1].y]
-            elif segment.color == segment.YELLOW:
+            if segment.color == segment.YELLOW:
                 separated_segments['YELLOW'][0]+= [segment.points[0].x, segment.points[1].x]
                 separated_segments['YELLOW'][1]+= [segment.points[0].y, segment.points[1].y]
+                max_yellow_y = max(max_yellow_y, segment.points[0].y, segment.points[1].y)
+        if not len(separated_segments['YELLOW'][0]):
+            max_yellow_y = np.inf
+        for segment in segments:
+            if segment.color == segment.WHITE and segment.points[0].y<=max_yellow_y and \
+               segment.points[1].y<=max_yellow_y:
+                separated_segments['WHITE'][0]+= [segment.points[0].x, segment.points[1].x]
+                separated_segments['WHITE'][1]+= [segment.points[0].y, segment.points[1].y]
+            
         return separated_segments
 
     def compute_regression_d_phi(self, m, b, mode):

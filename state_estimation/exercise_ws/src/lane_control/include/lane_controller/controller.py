@@ -64,7 +64,7 @@ class PurePursuitLaneController(DummyLaneController):
 
         look_ahead_d = k #* v + 0.05
         
-        fp_ref_x_square = np.maximum(0., look_ahead_d**2 - d**2)
+        fp_ref_x_square = np.maximum(0.004, look_ahead_d**2 - d**2)
         fp_ref_x = np.sqrt(fp_ref_x_square)
 
         T_ref_f = np.array([
@@ -73,7 +73,7 @@ class PurePursuitLaneController(DummyLaneController):
                [0., 0., 1.]
                ])
         T_a_f = np.dot(np.linalg.inv(T_ref_a), T_ref_f)
-        return T_a_f, np.array([T_a_f[0,2], T_a_f[1,2]])
+        return T_a_f, np.array([np.maximum(0, T_a_f[0,2]), T_a_f[1,2]])
 
     def get_car_control(self, **kwargs):
 
@@ -99,9 +99,9 @@ class PurePursuitLaneController(DummyLaneController):
                                                            theta_err,
                                                            v=v_curr)
 
-        #d = np.sqrt(f_point[0]**2+f_point[1]**2)
-        #alpha = np.arcsin(f_point[1] / d)
-        alpha = np.arctan(f_point[1] / np.maximum(f_point[0], epsilon))
+        d = np.sqrt(f_point[0]**2+f_point[1]**2)
+        alpha = np.arcsin(f_point[1] / d)
+        #alpha = np.arctan(f_point[1] / np.maximum(f_point[0], epsilon))
 
         self.prev_v = v_curr, alpha
         self.prev_theta, self.prev_d = theta_err, d_err
