@@ -165,7 +165,7 @@ class LaneFilterNode(DTROS):
         self.filter.update(segment_list_msg.segments)
         self.loginfo("[UPDATE]\n{}\n".format(self.filter) +\
                      "\tmeasurement_z = {}".format(self.filter.z))
-        self.publishEstimate(segment_list_msg)
+        self.publishEstimate()
 
 
     def publishEstimate(self, segment_list_msg=None):
@@ -185,8 +185,6 @@ class LaneFilterNode(DTROS):
         lanePose.status = lanePose.NORMAL
 
         self.pub_lane_pose.publish(lanePose)
-        if segment_list_msg is not None:
-            self.debugOutput(segment_list_msg, lanePose.d, lanePose.phi)
 
     def debugOutput(self, segment_list_msg, d_max, phi_max):
         """Creates and publishes debug messages

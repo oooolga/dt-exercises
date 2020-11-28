@@ -194,6 +194,6 @@ class LineDetector:
             :py:class:`Detections`: A :py:class:`Detections` object with the map of regions containing the desired colors, and the detected lines, together with their center points and normals,
         """
         map, edge_color = self.colorFilter(color_range)
-        lines = self.houghLine(edge_color)
-        centers, normals = self.findNormal(map, lines)
-        return Detections(lines=lines, normals=normals, map=map, centers=centers)
+        edge_coordinates = np.where(edge_color)
+        edge_coordinates = np.array([edge_coordinates[1], edge_coordinates[0]]).T
+        return edge_coordinates

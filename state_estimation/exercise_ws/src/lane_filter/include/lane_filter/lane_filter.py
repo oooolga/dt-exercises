@@ -9,8 +9,18 @@ from sklearn import linear_model
 np.set_printoptions(precision=3)
 EPS = 1e-5
 
-def linearRegression(X, y, mode='Huber'):
+def linearRegression(X, y, mode='Huber', max_points=None):
+
     N = X.shape[0]
+
+    if max_points and N > max_points:
+        idx = np.arange(N)
+        np.random.shuffle(idx)
+        idx = idx[:max_points]
+        X = X[idx,:]
+        y = y[idx]
+        N = max_points
+    
     if mode == 'RANSAC':
         lm = linear_model.RANSACRegressor(max_trials=200,
                                           stop_n_inliers=np.ceil(0.9*N))
@@ -30,7 +40,7 @@ def linearRegression(X, y, mode='Huber'):
         else:
             n_inlier = N
 
-    return m, b, n_inlier
+    return m, b, n_inlier, n_inlier/float(N)
 
 class LaneFilterHistogramKF():
     """ Generates an estimate of the lane pose.
@@ -166,14 +176,17 @@ class LaneFilterHistogramKF():
         white_inlier = yellow_inlier = total_inlier = 0
         white_m = yellow_m = 0.
         white_b = yellow_b = 0.
-        if len(separated_segments['WHITE'][0]):
-            white_m, white_b, white_inlier = linearRegression(
+        white_inlier_propt = yellow_inlier_propt = 0
+        if len(separated_segments['WHITE'][0]) >= 10:
+            white_m, white_b, white_inlier, white_inlier_propt = linearRegression(
                                                np.array(separated_segments['WHITE'][0])[:, np.newaxis],
-                                               np.array(separated_segments['WHITE'][1]))
-        if len(separated_segments['YELLOW'][0]):
-            yellow_m, yellow_b, yellow_inlier = linearRegression(
+                                               np.array(separated_segments['WHITE'][1]),
+                                               30)
+        if len(separated_segments['YELLOW'][0]) >= 8:
+            yellow_m, yellow_b, yellow_inlier, yellow_inlier_propt = linearRegression(
                                                np.array(separated_segments['YELLOW'][0])[:, np.newaxis],
-                                               np.array(separated_segments['YELLOW'][1]))
+                                               np.array(separated_segments['YELLOW'][1]),
+                                               30)
    
         white_z = np.array([0., 0.])
         yellow_z = np.array([0., 0.])
@@ -186,8 +199,8 @@ class LaneFilterHistogramKF():
         if total_inlier:
             self.z = (white_z * white_inlier + yellow_z * yellow_inlier) / total_inlier
 
-        print(white_m, yellow_m, total_inlier)
-        print(white_b, yellow_b, total_inlier)
+        print(white_m, white_b, total_inlier, white_inlier, white_inlier_propt)
+        print(yellow_m, yellow_b, total_inlier, yellow_inlier, yellow_inlier_propt)
         print(white_z, yellow_z, self.z)
         print(separated_segments)
 
@@ -202,22 +215,20 @@ class LaneFilterHistogramKF():
     def getEstimate(self):
         return self.belief
 
-    def setup_segments_for_regression(self, segments):
+    def setup_segments_for_regression(self, segments, max_coordinate_points=None):
 
         separated_segments = {'WHITE':[[], []], 'YELLOW':[[],[]]}
-        max_yellow_y = -np.inf
+
         for segment in segments:
+
             if segment.color == segment.YELLOW:
                 separated_segments['YELLOW'][0]+= [segment.points[0].x, segment.points[1].x]
                 separated_segments['YELLOW'][1]+= [segment.points[0].y, segment.points[1].y]
-                max_yellow_y = max(max_yellow_y, segment.points[0].y, segment.points[1].y)
-        if not len(separated_segments['YELLOW'][0]):
-            max_yellow_y = np.inf
         for segment in segments:
-            if segment.color == segment.WHITE and segment.points[0].y<=max_yellow_y and \
-               segment.points[1].y<=max_yellow_y:
+            if segment.color == segment.WHITE:
                 separated_segments['WHITE'][0]+= [segment.points[0].x, segment.points[1].x]
                 separated_segments['WHITE'][1]+= [segment.points[0].y, segment.points[1].y]
+
             
         return separated_segments
 
