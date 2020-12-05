@@ -3,6 +3,7 @@
 import rospy
 from duckietown.dtros import DTROS, NodeType, TopicType
 from duckietown_msgs.msg import SegmentList, LanePose, BoolStamped, Twist2DStamped, FSMState, WheelEncoderStamped
+from edge_point_msgs.msg import EdgePoint, EdgePointList
 from lane_filter import LaneFilterHistogramKF
 from sensor_msgs.msg import Image
 import os
@@ -63,8 +64,8 @@ class LaneFilterNode(DTROS):
 
 
         # Subscribers
-        self.sub_segment_list = rospy.Subscriber("~segment_list",
-                                    SegmentList,
+        self.sub_segment_list = rospy.Subscriber(f"/agent/ground_projection_node/lineseglist_out",
+                                    EdgePointList,
                                     self.cbProcessSegments,
                                     queue_size=1)
 
@@ -89,16 +90,6 @@ class LaneFilterNode(DTROS):
                                              LanePose,
                                              queue_size=1,
                                              dt_topic_type=TopicType.PERCEPTION)
-
-        self.pub_ml_img = rospy.Publisher("~measurement_likelihood_img",
-                                              Image,
-                                              queue_size=1,
-                                              dt_topic_type=TopicType.DEBUG)
-
-        self.pub_seglist_filtered = rospy.Publisher("~seglist_filtered",
-                                                    SegmentList,
-                                                    queue_size=1,
-                                                    dt_topic_type=TopicType.DEBUG)
 
         self.right_encoder_ticks = 0
         self.left_encoder_ticks = 0
@@ -148,7 +139,26 @@ class LaneFilterNode(DTROS):
         self.publishEstimate()
 
 
-    def cbProcessSegments(self, segment_list_msg):
+    #def cbProcessSegments(self, segment_list_msg):
+    #    """Callback to process the segments
+    #
+    #    Args:
+    #        segment_list_msg (:obj:`SegmentList`): message containing list of processed segments
+    #
+    #    """
+    #
+    #    self.last_update_stamp = segment_list_msg.header.stamp
+    #
+    #    # Get actual timestamp for latency measurement
+    #    timestamp_before_processing = rospy.Time.now()
+    #
+    #    # Step 2: update
+    #    self.filter.update(segment_list_msg.segments)
+    #    self.loginfo("[UPDATE]\n{}\n".format(self.filter) +\
+    #                 "\tmeasurement_z = {}".format(self.filter.z))
+    #    self.publishEstimate()
+
+    def cbProcessSegments(self, edgepoint_list_msg):
         """Callback to process the segments
 
         Args:
@@ -156,13 +166,13 @@ class LaneFilterNode(DTROS):
 
         """
 
-        self.last_update_stamp = segment_list_msg.header.stamp
+        self.last_update_stamp = edgepoint_list_msg.header.stamp
 
         # Get actual timestamp for latency measurement
         timestamp_before_processing = rospy.Time.now()
 
         # Step 2: update
-        self.filter.update(segment_list_msg.segments)
+        self.filter.update(edgepoint_list_msg.points)
         self.loginfo("[UPDATE]\n{}\n".format(self.filter) +\
                      "\tmeasurement_z = {}".format(self.filter.z))
         self.publishEstimate()

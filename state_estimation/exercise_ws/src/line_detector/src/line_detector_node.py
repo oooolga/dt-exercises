@@ -8,7 +8,7 @@ from sensor_msgs.msg import CompressedImage, Image
 from duckietown_msgs.msg import Segment, SegmentList, AntiInstagramThresholds
 from line_detector import LineDetector, ColorRange, plotSegments, plotMaps
 from image_processing.anti_instagram import AntiInstagram
-from edge_point_msgs.msg import EdgePoint
+from edge_point_msgs.msg import EdgePoint, EdgePointList
 from duckietown.dtros import DTROS, NodeType, TopicType
 
 
@@ -82,7 +82,7 @@ class LineDetectorNode(DTROS):
 
         # Publishers
         self.pub_lines = rospy.Publisher(
-            "~segment_list", SegmentList, queue_size=1,
+            "~edge_point_list", EdgePointList, queue_size=1,
             dt_topic_type=TopicType.PERCEPTION
         )
 
@@ -179,17 +179,22 @@ class LineDetectorNode(DTROS):
         ])
 
         # Fill in the segment_list with all the detected segments
-        segment_list = SegmentList()
-        segment_list.header.stamp = image_msg.header.stamp
+        #segment_list = SegmentList()
+        #segment_list.header.stamp = image_msg.header.stamp
+        edge_pt_list = EdgePointList()
+        edge_pt_list.header.stamp = image_msg.header.stamp
+
         for color, det in detections.items():
             # Get the ID for the color from the Segment msg definition
             # Throw and exception otherwise
             lines_normalized = (det+arr_cutoff) * arr_ratio
             color_id = getattr(Segment, color)
-            segment_list.segments.extend(self._to_segment_msg(lines_normalized, color_id, 40))
+            edge_pt_l = self._to_segment_msg(lines_normalized, color_id, 40)
+            #segment_list.segments.extend(segment_l)
+            edge_pt_list.points.extend(edge_pt_l)
 
         # Publish the message
-        self.pub_lines.publish(segment_list)
+        self.pub_lines.publish(edge_pt_list)
 
         # If there are any subscribers to the debug topics, generate a debug image and publish it
         if self.pub_d_edges.get_num_connections() > 0:
@@ -225,49 +230,48 @@ class LineDetectorNode(DTROS):
             :obj:`list` of :obj:`duckietown_msgs.msg.Segment`: List of Segment messages
 
         """
-        segment_msg_list = []
+        edge_pt_list = []
         
-        inrange_idx = []
-        segment = Segment()
-        for coordinate_i in range(coordinates.shape[0]):
-            if color == segment.WHITE:
-                if coordinates[coordinate_i, 0] < 0.3 and \
-                   coordinates[coordinate_i, 1] < 0.09 and \
-                   coordinates[coordinate_i, 1] > -0.3:
-                    inrange_idx.append(coordinate_i)
-            if color == segment.YELLOW:
-                if coordinates[coordinate_i, 0] < 0.3 and \
-                   coordinates[coordinate_i, 1] > -0.1:
-                    inrange_idx.append(coordinate_i)
+        #inrange_idx = []
+        #segment = Segment()
+        #for coordinate_i in range(coordinates.shape[0]):
+        #    if color == segment.WHITE:
+        #        if coordinates[coordinate_i, 0] < 0.3 and \
+        #           coordinates[coordinate_i, 1] < 0.09 and \
+        #           coordinates[coordinate_i, 1] > -0.3:
+        #            inrange_idx.append(coordinate_i)
+        #    if color == segment.YELLOW:
+        #        if coordinates[coordinate_i, 0] < 0.3 and \
+        #           coordinates[coordinate_i, 1] > -0.1:
+        #            inrange_idx.append(coordinate_i)
 
-        if len(inrange_idx):
-            coordinates = coordinates[np.array(inrange_idx), ::]
-            N = coordinates.shape[0]
-            if max_points and N > max_points:
-                
-                idx = np.arange(N)
-                np.random.shuffle(idx)
-                idx = idx[:max_points]
-                coordinates = coordinates[idx,:]
-            
+        #if len(inrange_idx):
+        #    coordinates = coordinates[np.array(inrange_idx), ::]
+        #    N = coordinates.shape[0]
+        #    if max_points and N > max_points:
+        #        
+        #        idx = np.arange(N)
+        #        np.random.shuffle(idx)
+        #        idx = idx[:max_points]
+        #        coordinates = coordinates[idx,:]       
 
-        for coordinate_i in range(0, coordinates.shape[0]-1, 2):
-            segment = Segment()
-            segment.color = color
-            segment.pixels_normalized[0].x = coordinates[coordinate_i, 0]
-            segment.pixels_normalized[0].y = coordinates[coordinate_i, 1]
-            segment.pixels_normalized[1].x = coordinates[coordinate_i+1, 0]
-            segment.pixels_normalized[1].y = coordinates[coordinate_i+1, 1]
-            segment.normal.x = 0.
-            segment.normal.y = 0.
-            segment_msg_list.append(segment)
+        for coordinate_i in range(0, coordinates.shape[0]):
+            #segment = Segment()
+            #segment.color = color
+            #segment.pixels_normalized[0].x = coordinates[coordinate_i, 0]
+            #segment.pixels_normalized[0].y = coordinates[coordinate_i, 1]
+            #segment.pixels_normalized[1].x = coordinates[coordinate_i+1, 0]
+            #segment.pixels_normalized[1].y = coordinates[coordinate_i+1, 1]
+            #segment.normal.x = 0.
+            #segment.normal.y = 0.
+            #segment_msg_list.append(segment)
 
             pixel_pt = EdgePoint()
             pixel_pt.color = color
             pixel_pt.pixel_normalized.x = coordinates[coordinate_i, 0]
             pixel_pt.pixel_normalized.y = coordinates[coordinate_i, 1]
-        return segment_msg_list
-
+            edge_pt_list.append(pixel_pt)
+        return edge_pt_list
 
 
 

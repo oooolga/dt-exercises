@@ -148,9 +148,9 @@ class LaneFilterHistogramKF():
         self.L_k = self.fL(d_k_minus_1, phi_k_minus_1, dD_k, dphi_k)
         self.belief['covariance'] = self.fP(self.F_k, P_k_minus_1, self.L_k, Q)
 
-    def update(self, segments):
+    def update(self, edgepoints):
         # prepare the segments for each belief array
-        segmentsArray = self.prepareSegments(segments)
+        segmentsArray = self.prepareSegments(edgepoints)
         # generate all belief arrays
 
         ''' ## measurement likelihood approach
@@ -171,7 +171,7 @@ class LaneFilterHistogramKF():
 
         
         '''
-        separated_segments = self.setup_segments_for_regression(segments)
+        separated_segments = self.setup_segments_for_regression(segmentsArray)
        
         white_inlier = yellow_inlier = total_inlier = 0
         white_m = yellow_m = 0.
@@ -222,13 +222,12 @@ class LaneFilterHistogramKF():
         for segment in segments:
 
             if segment.color == segment.YELLOW:
-                separated_segments['YELLOW'][0]+= [segment.points[0].x, segment.points[1].x]
-                separated_segments['YELLOW'][1]+= [segment.points[0].y, segment.points[1].y]
+                separated_segments['YELLOW'][0]+= [segment.pixel_ground.x]
+                separated_segments['YELLOW'][1]+= [segment.pixel_ground.y]
         for segment in segments:
             if segment.color == segment.WHITE:
-                separated_segments['WHITE'][0]+= [segment.points[0].x, segment.points[1].x]
-                separated_segments['WHITE'][1]+= [segment.points[0].y, segment.points[1].y]
-
+                separated_segments['WHITE'][0]+= [segment.pixel_ground.x]
+                separated_segments['WHITE'][1]+= [segment.pixel_ground.y]
             
         return separated_segments
 
@@ -354,13 +353,13 @@ class LaneFilterHistogramKF():
             if segment.color != segment.WHITE and segment.color != segment.YELLOW:
                 continue
             # filter out any segments that are behind us
-            if segment.points[0].x < 0 or segment.points[1].x < 0:
+            if segment.pixel_ground.x < 0:
                 continue
 
             self.filtered_segments.append(segment)
             # only consider points in a certain range from the Duckiebot for the position estimation
-            point_range = self.getSegmentDistance(segment)
-            if point_range < self.range_est:
-                segmentsArray.append(segment)
+            #point_range = self.getSegmentDistance(segment)
+            #if point_range < self.range_est:
+            segmentsArray.append(segment)
 
         return segmentsArray

@@ -15,7 +15,7 @@ from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import CameraInfo, CompressedImage
 from geometry_msgs.msg import Point as PointMsg
 from duckietown_msgs.msg import Segment, SegmentList
-
+from edge_point_msgs.msg import EdgePoint, EdgePointList
 
 class GroundProjectionNode(DTROS):
     """
@@ -51,11 +51,11 @@ class GroundProjectionNode(DTROS):
 
         # subscribers
         self.sub_camera_info = rospy.Subscriber("~camera_info", CameraInfo, self.cb_camera_info, queue_size=1)
-        self.sub_lineseglist_ = rospy.Subscriber("~lineseglist_in", SegmentList, self.lineseglist_cb, queue_size=1)
+        self.sub_lineseglist_ = rospy.Subscriber(f"/agent/line_detector_node/edge_point_list", EdgePointList, self.lineseglist_cb, queue_size=1)
 
         # publishers
         self.pub_lineseglist = rospy.Publisher("~lineseglist_out",
-                                               SegmentList, queue_size=1, dt_topic_type=TopicType.PERCEPTION)
+                                               EdgePointList, queue_size=1, dt_topic_type=TopicType.PERCEPTION)
         self.pub_debug_img = rospy.Publisher("~debug/ground_projection_image/compressed",
                                              CompressedImage, queue_size=1, dt_topic_type=TopicType.DEBUG)
 
@@ -114,7 +114,7 @@ class GroundProjectionNode(DTROS):
 
         return ground_pt_msg
 
-    def lineseglist_cb(self, seglist_msg):
+    def lineseglist_cb(self, edgepoint_list_msg):
         """
         Projects a list of line segments on the ground reference frame point by point by
         calling :py:meth:`pixel_msg_to_ground_msg`. Then publishes the projected list of segments.
@@ -124,25 +124,34 @@ class GroundProjectionNode(DTROS):
 
         """
         if self.camera_info_received:
-            seglist_out = SegmentList()
-            seglist_out.header = seglist_msg.header
-            for received_segment in seglist_msg.segments:
-                new_segment = Segment()
-                new_segment.points[0] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[0])
-                new_segment.points[1] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[1])
-                new_segment.color = received_segment.color
+            #seglist_out = SegmentList()
+            #seglist_out.header = seglist_msg.header
+            edgept_list_out = EdgePointList()
+            edgept_list_out.header = edgepoint_list_msg.header
+
+            #for received_segment in seglist_msg.segments:
+                #new_segment = Segment()
+                #new_segment.points[0] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[0])
+                #new_segment.points[1] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[1])
+                #new_segment.color = received_segment.color
                 # TODO what about normal and points
-                seglist_out.segments.append(new_segment)
-            self.pub_lineseglist.publish(seglist_out)
+                #seglist_out.segments.append(new_segment)
+            for received_pt in edgepoint_list_msg.points:
+                edgept = EdgePoint()
+                edgept.pixel_ground = self.pixel_msg_to_ground_msg(received_pt.pixel_normalized)
+                edgept.color = received_pt.color
+                edgept_list_out.points.append(edgept)
+            #self.pub_lineseglist.publish(seglist_out)
+            self.pub_lineseglist.publish(edgept_list_out)
 
             if not self.first_processing_done:
                 self.log('First projected segments published.')
                 self.first_processing_done = True
 
-            if self.pub_debug_img.get_num_connections() > 0:
-                debug_image_msg = self.bridge.cv2_to_compressed_imgmsg(self.debug_image(seglist_out))
-                debug_image_msg.header = seglist_out.header
-                self.pub_debug_img.publish(debug_image_msg)
+            #if self.pub_debug_img.get_num_connections() > 0:
+                #debug_image_msg = self.bridge.cv2_to_compressed_imgmsg(self.debug_image(seglist_out))
+                #debug_image_msg.header = seglist_out.header
+                #self.pub_debug_img.publish(debug_image_msg)
         else:
             self.log('Waiting for a CameraInfo message', 'warn')
 
