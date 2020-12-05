@@ -13,3 +13,5 @@ catkin_ws/.catkin_tools/
 */assets/setup/challenges/tmp
 *resolved
 *.yaml
+state_estimation/exercise_ws/src/vision_opencv/
+

@@ -8,7 +8,7 @@ from sensor_msgs.msg import CompressedImage, Image
 from duckietown_msgs.msg import Segment, SegmentList, AntiInstagramThresholds
 from line_detector import LineDetector, ColorRange, plotSegments, plotMaps
 from image_processing.anti_instagram import AntiInstagram
-
+from edge_point_msgs.msg import EdgePoint
 from duckietown.dtros import DTROS, NodeType, TopicType
 
 
@@ -261,6 +261,11 @@ class LineDetectorNode(DTROS):
             segment.normal.x = 0.
             segment.normal.y = 0.
             segment_msg_list.append(segment)
+
+            pixel_pt = EdgePoint()
+            pixel_pt.color = color
+            pixel_pt.pixel_normalized.x = coordinates[coordinate_i, 0]
+            pixel_pt.pixel_normalized.y = coordinates[coordinate_i, 1]
         return segment_msg_list
 
 
