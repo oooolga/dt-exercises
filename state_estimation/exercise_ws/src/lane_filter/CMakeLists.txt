@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   duckietown_msgs # Every duckietown packages should use this.
   cv_bridge
+  image_transport
   tf
 )
 

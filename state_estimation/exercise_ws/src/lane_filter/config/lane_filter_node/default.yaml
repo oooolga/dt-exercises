@@ -26,3 +26,10 @@ lane_filter_histogram_kf_configuration:
   range_est: 0.31
   range_max: 0.6
   error_offset: 0.01
+
+edge_bound:
+  WHITE_Y:
+    min: -0.3
+    max: 0.09
+  YELLOW_Y:
+    min: -0.1

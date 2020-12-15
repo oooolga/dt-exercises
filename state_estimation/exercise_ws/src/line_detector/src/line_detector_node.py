@@ -91,10 +91,6 @@ class LineDetectorNode(DTROS):
             dt_topic_type=TopicType.DEBUG
         )
 
-        self.pub_d_color_edges = rospy.Publisher(
-            "~debug/edges/color_compressed", CompressedImage, queue_size=1,
-            dt_topic_type=TopicType.DEBUG
-        )
         # these are not compressed because compression adds undesired blur
         
         # Subscribers
@@ -230,41 +226,9 @@ class LineDetectorNode(DTROS):
             :obj:`list` of :obj:`duckietown_msgs.msg.Segment`: List of Segment messages
 
         """
-        edge_pt_list = []
-        
-        #inrange_idx = []
-        #segment = Segment()
-        #for coordinate_i in range(coordinates.shape[0]):
-        #    if color == segment.WHITE:
-        #        if coordinates[coordinate_i, 0] < 0.3 and \
-        #           coordinates[coordinate_i, 1] < 0.09 and \
-        #           coordinates[coordinate_i, 1] > -0.3:
-        #            inrange_idx.append(coordinate_i)
-        #    if color == segment.YELLOW:
-        #        if coordinates[coordinate_i, 0] < 0.3 and \
-        #           coordinates[coordinate_i, 1] > -0.1:
-        #            inrange_idx.append(coordinate_i)
-
-        #if len(inrange_idx):
-        #    coordinates = coordinates[np.array(inrange_idx), ::]
-        #    N = coordinates.shape[0]
-        #    if max_points and N > max_points:
-        #        
-        #        idx = np.arange(N)
-        #        np.random.shuffle(idx)
-        #        idx = idx[:max_points]
-        #        coordinates = coordinates[idx,:]       
+        edge_pt_list = []     
 
         for coordinate_i in range(0, coordinates.shape[0]):
-            #segment = Segment()
-            #segment.color = color
-            #segment.pixels_normalized[0].x = coordinates[coordinate_i, 0]
-            #segment.pixels_normalized[0].y = coordinates[coordinate_i, 1]
-            #segment.pixels_normalized[1].x = coordinates[coordinate_i+1, 0]
-            #segment.pixels_normalized[1].y = coordinates[coordinate_i+1, 1]
-            #segment.normal.x = 0.
-            #segment.normal.y = 0.
-            #segment_msg_list.append(segment)
 
             pixel_pt = EdgePoint()
             pixel_pt.color = color

@@ -90,6 +90,7 @@ class LaneFilterHistogramKF():
         self.wheel_trim = 0.0
         self.initialized = False
         self.total_ticks = 135. # the number of ticks in one full revolution
+        self.edge_bound = None
 
         self.f = lambda d, phi, dD, dphi: np.array([d+dD*np.sin(phi+dphi),
                                                     phi+dphi])
@@ -150,7 +151,7 @@ class LaneFilterHistogramKF():
 
     def update(self, edgepoints):
         # prepare the segments for each belief array
-        segmentsArray = self.prepareSegments(edgepoints)
+        pointsArray = self.preparePoints(edgepoints)
         # generate all belief arrays
 
         ''' ## measurement likelihood approach
@@ -171,7 +172,7 @@ class LaneFilterHistogramKF():
 
         
         '''
-        separated_segments = self.setup_segments_for_regression(segmentsArray)
+        separated_segments = self.setup_segments_for_regression(pointsArray)
        
         white_inlier = yellow_inlier = total_inlier = 0
         white_m = yellow_m = 0.
@@ -251,41 +252,6 @@ class LaneFilterHistogramKF():
 
 
 
-    def generate_measurement_likelihood(self, segments):
-        
-        grid = np.mgrid[self.d_min:self.d_max+EPS:self.delta_d,
-                        self.phi_min:self.phi_max+EPS:self.delta_phi]
-
-        # initialize measurement likelihood to all zeros
-        measurement_likelihood = np.zeros(grid[0].shape, dtype=np.float32)
-
-        if len(segments) == 0:
-            return measurement_likelihood
-
-        for segment in segments:
-            d_i, phi_i, l_i, weight = self.generateVote(segment)
-
-            # if the vote lands outside of the histogram discard it
-            if d_i > self.d_max or d_i < self.d_min or phi_i < self.phi_min or phi_i > self.phi_max:
-                continue
-            #d_i = np.clip(d_i, self.d_min, self.d_max)
-            #phi_i = np.clip(phi_i, self.phi_min, self.phi_max)
-
-            i = int(floor((d_i - self.d_min) / self.delta_d))
-            j = int(floor((phi_i - self.phi_min) / self.delta_phi))
-            measurement_likelihood[i, j] = measurement_likelihood[i, j] + 1
-
-        if np.linalg.norm(measurement_likelihood) == 0:
-            return measurement_likelihood
-
-        # lastly normalize so that we have a valid probability density function
-
-        measurement_likelihood = measurement_likelihood / \
-            np.sum(measurement_likelihood)
-        return measurement_likelihood
-
-
-
 
     # generate a vote for one segment
     def generateVote(self, segment):
@@ -329,37 +295,29 @@ class LaneFilterHistogramKF():
         weight = 1
         return d_i, phi_i, l_i, weight
 
-    def get_inlier_segments(self, segments, d_max, phi_max):
-        inlier_segments = []
-        for segment in segments:
-            d_s, phi_s, l, w = self.generateVote(segment)
-            if abs(d_s - d_max) < 3*self.delta_d and abs(phi_s - phi_max) < 3*self.delta_phi:
-                inlier_segments.append(segment)
-        return inlier_segments
-
-    # get the distance from the center of the Duckiebot to the center point of a segment
-    def getSegmentDistance(self, segment):
-        x_c = (segment.points[0].x + segment.points[1].x) / 2
-        y_c = (segment.points[0].y + segment.points[1].y) / 2
-        return sqrt(x_c**2 + y_c**2)
 
     # prepare the segments for the creation of the belief arrays
-    def prepareSegments(self, segments):
-        segmentsArray = []
+    def preparePoints(self, points):
+        pointsArray = []
         self.filtered_segments = []
-        for segment in segments:
+        for point in points:
 
             # we don't care about RED ones for now
-            if segment.color != segment.WHITE and segment.color != segment.YELLOW:
+            if point.color != point.WHITE and point.color != point.YELLOW:
                 continue
             # filter out any segments that are behind us
-            if segment.pixel_ground.x < 0:
+            if point.pixel_ground.x < 0:
                 continue
 
-            self.filtered_segments.append(segment)
+            self.filtered_segments.append(point)
             # only consider points in a certain range from the Duckiebot for the position estimation
-            #point_range = self.getSegmentDistance(segment)
-            #if point_range < self.range_est:
-            segmentsArray.append(segment)
+            if point.distance < self.d_max:
+                if point.color == point.YELLOW and \
+                   point.pixel_ground.y > self.edge_bound["YELLOW_Y"]["min"]:
+                    pointsArray.append(point)
+                if point.color == point.WHITE and \
+                   point.pixel_ground.y > self.edge_bound["WHITE_Y"]["min"] and \
+                   point.pixel_ground.y < self.edge_bound["WHITE_Y"]["max"]:
+                    pointsArray.append(point)
 
-        return segmentsArray
+        return pointsArray

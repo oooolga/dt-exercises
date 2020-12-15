@@ -5,8 +5,8 @@ from duckietown.dtros import DTROS, NodeType, TopicType
 from duckietown_msgs.msg import SegmentList, LanePose, BoolStamped, Twist2DStamped, FSMState, WheelEncoderStamped
 from edge_point_msgs.msg import EdgePoint, EdgePointList
 from lane_filter import LaneFilterHistogramKF
-from sensor_msgs.msg import Image
-import os
+from sensor_msgs.msg import CompressedImage, Image
+import os, cv2
 import numpy as np
 from cv_bridge import CvBridge
 
@@ -61,6 +61,7 @@ class LaneFilterNode(DTROS):
         self.filter.wheel_radius = rospy.get_param(f"/{veh}/kinematics_node/radius")
         self.filter.wheel_distance = rospy.get_param(f"/{veh}/kinematics_node/baseline")
         self.filter.wheel_trim = max(abs(rospy.get_param(f"/{veh}/kinematics_node/trim")), 0.1) #if self._mode != 'SIM' else 0.0
+        self.filter.edge_bound = rospy.get_param("~edge_bound")
 
 
         # Subscribers
@@ -90,6 +91,10 @@ class LaneFilterNode(DTROS):
                                              LanePose,
                                              queue_size=1,
                                              dt_topic_type=TopicType.PERCEPTION)
+        self.pub_ground_img = rospy.Publisher(f"~debug/edges/ground_compressed",
+                                              CompressedImage,
+                                              queue_size=1,
+                                              dt_topic_type=TopicType.DEBUG)
 
         self.right_encoder_ticks = 0
         self.left_encoder_ticks = 0
@@ -97,6 +102,7 @@ class LaneFilterNode(DTROS):
         self.left_encoder_ticks_delta = 0
         # Set up a timer for prediction (if we got encoder data) since that data can come very quickly
         rospy.Timer(rospy.Duration(1/self._predict_freq), self.cbPredict)
+        self.ground_img_bg = None
 
         self.bridge = CvBridge()
 
@@ -139,25 +145,6 @@ class LaneFilterNode(DTROS):
         self.publishEstimate()
 
 
-    #def cbProcessSegments(self, segment_list_msg):
-    #    """Callback to process the segments
-    #
-    #    Args:
-    #        segment_list_msg (:obj:`SegmentList`): message containing list of processed segments
-    #
-    #    """
-    #
-    #    self.last_update_stamp = segment_list_msg.header.stamp
-    #
-    #    # Get actual timestamp for latency measurement
-    #    timestamp_before_processing = rospy.Time.now()
-    #
-    #    # Step 2: update
-    #    self.filter.update(segment_list_msg.segments)
-    #    self.loginfo("[UPDATE]\n{}\n".format(self.filter) +\
-    #                 "\tmeasurement_z = {}".format(self.filter.z))
-    #    self.publishEstimate()
-
     def cbProcessSegments(self, edgepoint_list_msg):
         """Callback to process the segments
 
@@ -175,7 +162,80 @@ class LaneFilterNode(DTROS):
         self.filter.update(edgepoint_list_msg.points)
         self.loginfo("[UPDATE]\n{}\n".format(self.filter) +\
                      "\tmeasurement_z = {}".format(self.filter.z))
+        ground_img = self.get_ground_img(edgepoint_list_msg)
         self.publishEstimate()
+
+        debug_ground_img_msg = self.bridge.cv2_to_compressed_imgmsg(ground_img)
+        debug_ground_img_msg.header = edgepoint_list_msg.header
+        self.pub_ground_img.publish(debug_ground_img_msg)
+
+    def get_ground_img(self, edgepoint_list_msg):
+        if self.ground_img_bg is None:
+
+            # initialize gray image
+            self.ground_img_bg = np.ones((400, 400, 3), np.uint8) * 128
+
+            # draw vertical lines of the grid
+            for vline in np.arange(40,361,40):
+                cv2.line(self.ground_img_bg,
+                         pt1=(vline, 20),
+                         pt2=(vline, 300),
+                         color=(255, 255, 0),
+                         thickness=1)
+
+            # draw the coordinates
+            cv2.putText(self.ground_img_bg, "-20cm", (120-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, "  0cm", (200-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, "+20cm", (280-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+
+            # draw horizontal lines of the grid
+            for hline in np.arange(20, 301, 40):
+                cv2.line(self.ground_img_bg,
+                         pt1=(40, hline),
+                         pt2=(360, hline),
+                         color=(255, 255, 0),
+                         thickness=1)
+
+            # draw the coordinates
+            cv2.putText(self.ground_img_bg, "20cm", (2, 220+3), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, " 0cm", (2, 300+3), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+
+            # draw robot marker at the center
+            cv2.line(self.ground_img_bg,
+                     pt1=(200 + 0, 300 - 20),
+                     pt2=(200 + 0, 300 + 0),
+                     color=(255, 0, 0),
+                     thickness=1)
+
+            cv2.line(self.ground_img_bg,
+                     pt1=(200 + 20, 300 - 20),
+                     pt2=(200 + 0, 300 + 0),
+                     color=(255, 0, 0),
+                     thickness=1)
+
+            cv2.line(self.ground_img_bg,
+                     pt1=(200 - 20, 300 - 20),
+                     pt2=(200 + 0, 300 + 0),
+                     color=(255, 0, 0),
+                     thickness=1)
+
+        # map segment color variables to BGR colors
+        color_map = {EdgePoint.WHITE: (255, 255, 255),
+                     EdgePoint.RED: (0, 0, 255),
+                     EdgePoint.YELLOW: (0, 255, 255)}
+
+        image = self.ground_img_bg.copy()
+
+        # plot every segment if both ends are in the scope of the image (within 50cm from the origin)
+        for point in edgepoint_list_msg.points:
+            if not np.any(np.abs([point.pixel_ground.x, point.pixel_ground.y]) > 0.50):
+                cv2.circle(image,
+                           (int(point.pixel_ground.y * -400) + 200, int(point.pixel_ground.x * -400) + 300),
+                           radius=0,
+                           color=color_map.get(point.color, (0, 0, 0)),
+                           thickness=-1)
+
+        return image 
 
 
     def publishEstimate(self, segment_list_msg=None):
@@ -195,36 +255,6 @@ class LaneFilterNode(DTROS):
         lanePose.status = lanePose.NORMAL
 
         self.pub_lane_pose.publish(lanePose)
-
-    def debugOutput(self, segment_list_msg, d_max, phi_max):
-        """Creates and publishes debug messages
-
-        Args:
-            segment_list_msg (:obj:`SegmentList`): message containing list of filtered segments
-            d_max (:obj:`float`): best estimate for d
-            phi_max (:obj:``float): best estimate for phi
-
-        """
-        if self._debug:
-
-            # Get the segments that agree with the best estimate and publish them
-            inlier_segments = self.filter.get_inlier_segments(segment_list_msg.segments,
-                                                              d_max,
-                                                              phi_max)
-            inlier_segments_msg = SegmentList()
-            inlier_segments_msg.header = segment_list_msg.header
-            inlier_segments_msg.segments = inlier_segments
-
-            self.pub_seglist_filtered.publish(inlier_segments_msg)
-
-            # Create belief image and publish it
-            ml = self.filter.generate_measurement_likelihood(segment_list_msg.segments)
-            if ml is not None:
-                ml_img = self.bridge.cv2_to_imgmsg(
-                    np.array(255 * ml).astype("uint8"), "mono8")
-                ml_img.header.stamp = segment_list_msg.header.stamp
-                self.pub_ml_img.publish(ml_img)
-
 
     def cbMode(self, msg):
         return  # TODO adjust self.active

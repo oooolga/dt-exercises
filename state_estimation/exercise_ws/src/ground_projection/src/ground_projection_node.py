@@ -51,7 +51,7 @@ class GroundProjectionNode(DTROS):
 
         # subscribers
         self.sub_camera_info = rospy.Subscriber("~camera_info", CameraInfo, self.cb_camera_info, queue_size=1)
-        self.sub_lineseglist_ = rospy.Subscriber(f"/agent/line_detector_node/edge_point_list", EdgePointList, self.lineseglist_cb, queue_size=1)
+        self.sub_edgepointlist_ = rospy.Subscriber(f"/agent/line_detector_node/edge_point_list", EdgePointList, self.edgeptlist_cb, queue_size=1)
 
         # publishers
         self.pub_lineseglist = rospy.Publisher("~lineseglist_out",
@@ -61,12 +61,8 @@ class GroundProjectionNode(DTROS):
 
         self.bridge = CvBridge()
 
-        self.debug_img_bg = None
+        self.ground_img_bg = None
 
-        # Seems to be never used:
-        # self.service_homog_ = rospy.Service("~estimate_homography", EstimateHomography, self.estimate_homography_cb)
-        # self.service_gnd_coord_ = rospy.Service("~get_ground_coordinate", GetGroundCoord, self.get_ground_coordinate_cb)
-        # self.service_img_coord_ = rospy.Service("~get_image_coordinate", GetImageCoord, self.get_image_coordinate_cb)
 
     def cb_camera_info(self, msg):
         """
@@ -114,44 +110,28 @@ class GroundProjectionNode(DTROS):
 
         return ground_pt_msg
 
-    def lineseglist_cb(self, edgepoint_list_msg):
-        """
-        Projects a list of line segments on the ground reference frame point by point by
-        calling :py:meth:`pixel_msg_to_ground_msg`. Then publishes the projected list of segments.
+    def edgeptlist_cb(self, edgepoint_list_msg):
 
-        Args:
-            seglist_msg (:obj:`duckietown_msgs.msg.SegmentList`): Line segments in pixel space from unrectified images
-
-        """
         if self.camera_info_received:
-            #seglist_out = SegmentList()
-            #seglist_out.header = seglist_msg.header
             edgept_list_out = EdgePointList()
             edgept_list_out.header = edgepoint_list_msg.header
 
-            #for received_segment in seglist_msg.segments:
-                #new_segment = Segment()
-                #new_segment.points[0] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[0])
-                #new_segment.points[1] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[1])
-                #new_segment.color = received_segment.color
-                # TODO what about normal and points
-                #seglist_out.segments.append(new_segment)
             for received_pt in edgepoint_list_msg.points:
                 edgept = EdgePoint()
                 edgept.pixel_ground = self.pixel_msg_to_ground_msg(received_pt.pixel_normalized)
                 edgept.color = received_pt.color
+                edgept.distance = np.sqrt(edgept.pixel_ground.x**2 + edgept.pixel_ground.y**2)
                 edgept_list_out.points.append(edgept)
-            #self.pub_lineseglist.publish(seglist_out)
             self.pub_lineseglist.publish(edgept_list_out)
 
             if not self.first_processing_done:
                 self.log('First projected segments published.')
                 self.first_processing_done = True
 
-            #if self.pub_debug_img.get_num_connections() > 0:
-                #debug_image_msg = self.bridge.cv2_to_compressed_imgmsg(self.debug_image(seglist_out))
-                #debug_image_msg.header = seglist_out.header
-                #self.pub_debug_img.publish(debug_image_msg)
+            if self.pub_debug_img.get_num_connections() > 0:
+                debug_image_msg = self.bridge.cv2_to_compressed_imgmsg(self.debug_image(edgept_list_out.points))
+                debug_image_msg.header = edgept_list_out.header
+                self.pub_debug_img.publish(debug_image_msg)
         else:
             self.log('Waiting for a CameraInfo message', 'warn')
 
@@ -208,88 +188,73 @@ class GroundProjectionNode(DTROS):
 
         return calib_data['homography']
 
-    def debug_image(self, seg_list):
-        """
-        Generates a debug image with all the projected segments plotted with respect to the robot's origin.
-
-        Args:
-            seg_list (:obj:`duckietown_msgs.msg.SegmentList`): Line segments in the ground plane relative to the robot origin
-
-        Returns:
-            :obj:`numpy array`: an OpenCV image
-
-        """
-        # dimensions of the image are 1m x 1m so, 1px = 2.5mm
-        # the origin is at x=200 and y=300
-
-        # if that's the first call, generate the background
-        if self.debug_img_bg is None:
+    def debug_image(self, edgepoint_list):
+        if self.ground_img_bg is None:
 
             # initialize gray image
-            self.debug_img_bg = np.ones((400, 400, 3), np.uint8) * 128
+            self.ground_img_bg = np.ones((400, 400, 3), np.uint8) * 128
 
             # draw vertical lines of the grid
             for vline in np.arange(40,361,40):
-                cv2.line(self.debug_img_bg,
+                cv2.line(self.ground_img_bg,
                          pt1=(vline, 20),
                          pt2=(vline, 300),
                          color=(255, 255, 0),
                          thickness=1)
 
             # draw the coordinates
-            cv2.putText(self.debug_img_bg, "-20cm", (120-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
-            cv2.putText(self.debug_img_bg, "  0cm", (200-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
-            cv2.putText(self.debug_img_bg, "+20cm", (280-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, "-20cm", (120-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, "  0cm", (200-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, "+20cm", (280-25, 300+15), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
 
             # draw horizontal lines of the grid
             for hline in np.arange(20, 301, 40):
-                cv2.line(self.debug_img_bg,
+                cv2.line(self.ground_img_bg,
                          pt1=(40, hline),
                          pt2=(360, hline),
                          color=(255, 255, 0),
                          thickness=1)
 
             # draw the coordinates
-            cv2.putText(self.debug_img_bg, "20cm", (2, 220+3), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
-            cv2.putText(self.debug_img_bg, " 0cm", (2, 300+3), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, "20cm", (2, 220+3), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
+            cv2.putText(self.ground_img_bg, " 0cm", (2, 300+3), cv2.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 0), 1)
 
             # draw robot marker at the center
-            cv2.line(self.debug_img_bg,
+            cv2.line(self.ground_img_bg,
                      pt1=(200 + 0, 300 - 20),
                      pt2=(200 + 0, 300 + 0),
                      color=(255, 0, 0),
                      thickness=1)
 
-            cv2.line(self.debug_img_bg,
+            cv2.line(self.ground_img_bg,
                      pt1=(200 + 20, 300 - 20),
                      pt2=(200 + 0, 300 + 0),
                      color=(255, 0, 0),
                      thickness=1)
 
-            cv2.line(self.debug_img_bg,
+            cv2.line(self.ground_img_bg,
                      pt1=(200 - 20, 300 - 20),
                      pt2=(200 + 0, 300 + 0),
                      color=(255, 0, 0),
                      thickness=1)
 
         # map segment color variables to BGR colors
-        color_map = {Segment.WHITE: (255, 255, 255),
-                     Segment.RED: (0, 0, 255),
-                     Segment.YELLOW: (0, 255, 255)}
+        color_map = {EdgePoint.WHITE: (255, 255, 255),
+                     EdgePoint.RED: (0, 0, 255),
+                     EdgePoint.YELLOW: (0, 255, 255)}
 
-        image = self.debug_img_bg.copy()
+        image = self.ground_img_bg.copy()
 
         # plot every segment if both ends are in the scope of the image (within 50cm from the origin)
-        for segment in seg_list.segments:
-            if not np.any(np.abs([segment.points[0].x, segment.points[0].y,
-                                  segment.points[1].x, segment.points[1].y]) > 0.50):
-                cv2.line(image,
-                         pt1=(int(segment.points[0].y * -400) + 200, int(segment.points[0].x * -400) + 300),
-                         pt2=(int(segment.points[1].y * -400) + 200, int(segment.points[1].x * -400) + 300),
-                         color=color_map.get(segment.color, (0, 0, 0)),
-                         thickness=1)
+        for point in edgepoint_list:
+            if not np.any(np.abs([point.pixel_ground.x, point.pixel_ground.y]) > 0.50):
+                cv2.circle(image,
+                           (int(point.pixel_ground.y * -400) + 200, int(point.pixel_ground.x * -400) + 300),
+                           radius=0,
+                           color=color_map.get(point.color, (0, 0, 0)),
+                           thickness=-1)
 
-        return image
+        return image 
 
 
 if __name__ == '__main__':
